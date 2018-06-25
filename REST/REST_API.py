@@ -8,6 +8,24 @@ import hmac
 import hashlib
 import json
 
+
+#1-待成交，2-部分成交，3-完全成交，4-部分撤销，5-完全撤销，6-待撤销
+STATE_PENNDING = 1
+STATE_PARTIAL_FILLED = 2
+STATE_FILLED = 3
+STATE_PARTIAL_CANCELED = 4
+STATE_CANCELED = 5
+STATE_PENNDING_CANCEL = 6
+
+#交易类型，1-市价单，2-限价单
+TYPE_MARKET_PRICE = 1
+TYPE_LIMIT_PRICE = 2
+
+#交易方向，1-买，2-卖
+SIDE_BUY = 1
+SIDE_SELL = 2
+
+
 class REST_API(object):
 
     def __init__(self, base_url='https://api.coinpark.cc/v1/'):
@@ -103,7 +121,12 @@ class REST_API(object):
         """
         return self.public_request('GET', 'mdata', cmd='ticker', pair=symbol)
 
-    def get_balance(self, select):
+    def get_balance(self, select=1):
+        '''
+        查询余额
+        :param select:
+        :return:
+        '''
         cmds = [
             {
                 'cmd': 'transfer/assets',
@@ -113,6 +136,11 @@ class REST_API(object):
         return self.signed_request('POST', 'transfer', cmds)
 
     def get_withdrawInfo(self, withdraw_id):
+        '''
+        提现查询
+        :param withdraw_id:
+        :return:
+        '''
         cmds = [
             {
                 'cmd': 'transfer/withdrawInfo',
@@ -120,6 +148,113 @@ class REST_API(object):
              }
         ]
         return self.signed_request('POST', 'transfer', cmds)
+
+    def get_order_pending_list(self, page, size, pair=None, account_type=None, coin_symbol=None,
+                                   currency_symbol=None, order_side=None):
+        """
+        获取当前订单
+        :param page: 第几页，从1开始
+        :param size: 要几条
+        :param pair:  交易对, 兼容参数
+        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
+        :param coin_symbol: 交易币种
+        :param currency_symbol: 定价币种
+        :param order_side: 交易方向，1 - 买，2 - 卖
+        :return:
+        """
+        cmd = {
+            'cmd': 'orderpending/orderPendingList',
+        }
+        body = {'page': page, 'size': size}
+        if pair:
+            body['pair'] = pair
+        if account_type:
+            body['account_type'] = account_type
+        if coin_symbol:
+            body['coin_symbol'] = coin_symbol
+        if currency_symbol:
+            body['currency_symbol'] = currency_symbol
+        if order_side:
+            body['order_side'] = order_side
+        cmd['body'] = body
+        return self.signed_request('POST', 'orderpending', [cmd])
+
+    def get_pending_history_list(self, page, size, pair=None, account_type=None, coin_symbol=None,
+                                   currency_symbol=None, order_side=None, hide_cancel=None):
+        """
+        获取历史订单
+        :param page: 第几页，从1开始
+        :param size: 要几条
+        :param pair:  交易对, 兼容参数
+        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
+        :param coin_symbol: 交易币种
+        :param currency_symbol: 定价币种
+        :param order_side: 交易方向，1 - 买，2 - 卖
+        :param hide_cancel: 隐藏已撤销订单，0-不隐藏，1-隐藏
+        :return:
+        """
+        cmd = {
+            'cmd': 'orderpending/pendingHistoryList',
+        }
+        body = {'page': page, 'size': size}
+        if pair:
+            body['pair'] = pair
+        if account_type:
+            body['account_type'] = account_type
+        if coin_symbol:
+            body['coin_symbol'] = coin_symbol
+        if currency_symbol:
+            body['currency_symbol'] = currency_symbol
+        if order_side:
+            body['order_side'] = order_side
+        if hide_cancel:
+            body['hide_cancel'] = hide_cancel
+        cmd['body'] = body
+        return self.signed_request('POST', 'orderpending', [cmd])
+
+    def get_order(self, order_id):
+        """
+        获取订单详情
+        :param order_id: 订单ID
+        :return:
+        """
+        cmd = {
+            'cmd': 'orderpending/order',
+            'body': {
+                'id': order_id
+            }
+        }
+        return self.signed_request('POST', 'orderpending', [cmd])
+
+    def get_order_history_list(self, page, size, pair=None, account_type=None, coin_symbol=None,
+                                   currency_symbol=None, order_side=None):
+        """
+        获取成交明细
+        :param page: 第几页，从1开始
+        :param size: 要几条
+        :param pair:  交易对, 兼容参数
+        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
+        :param coin_symbol: 交易币种
+        :param currency_symbol: 定价币种
+        :param order_side: 交易方向，1 - 买，2 - 卖
+        :return:
+        """
+        cmd = {
+            'cmd': 'orderpending/orderHistoryList',
+        }
+        body = {'page': page, 'size': size}
+        if pair:
+            body['pair'] = pair
+        if account_type:
+            body['account_type'] = account_type
+        if coin_symbol:
+            body['coin_symbol'] = coin_symbol
+        if currency_symbol:
+            body['currency_symbol'] = currency_symbol
+        if order_side:
+            body['order_side'] = order_side
+        cmd['body'] = body
+        return self.signed_request('POST', 'orderpending', [cmd])
 
     def create_order_cmd(self, index, symbol, order_side, order_type, price, amount, money, pay_bix=0, account_type=0):
         """
@@ -175,112 +310,6 @@ class REST_API(object):
         }
         return cmd
 
-    def get_order_pending_list_cmd(self, page, size, pair=None, account_type=None, coin_symbol=None,
-                                   currency_symbol=None, order_side=None):
-        """
-        获取当前订单
-        :param page: 第几页，从1开始
-        :param size: 要几条
-        :param pair:  交易对, 兼容参数
-        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
-        :param coin_symbol: 交易币种
-        :param currency_symbol: 定价币种
-        :param order_side: 交易方向，1 - 买，2 - 卖
-        :return:
-        """
-        cmd = {
-            'cmd': 'orderpending/orderPendingList',
-        }
-        body = {'page': page, 'size': size}
-        if pair:
-            body['pair'] = pair
-        if account_type:
-            body['account_type'] = account_type
-        if coin_symbol:
-            body['coin_symbol'] = coin_symbol
-        if currency_symbol:
-            body['currency_symbol'] = currency_symbol
-        if order_side:
-            body['order_side'] = order_side
-        cmd['body'] = body
-        return cmd
-    def get_pending_history_list_cmd(self, page, size, pair=None, account_type=None, coin_symbol=None,
-                                   currency_symbol=None, order_side=None, hide_cancel=None):
-        """
-        获取历史订单
-        :param page: 第几页，从1开始
-        :param size: 要几条
-        :param pair:  交易对, 兼容参数
-        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
-        :param coin_symbol: 交易币种
-        :param currency_symbol: 定价币种
-        :param order_side: 交易方向，1 - 买，2 - 卖
-        :param hide_cancel: 隐藏已撤销订单，0-不隐藏，1-隐藏
-        :return:
-        """
-        cmd = {
-            'cmd': 'orderpending/pendingHistoryList',
-        }
-        body = {'page': page, 'size': size}
-        if pair:
-            body['pair'] = pair
-        if account_type:
-            body['account_type'] = account_type
-        if coin_symbol:
-            body['coin_symbol'] = coin_symbol
-        if currency_symbol:
-            body['currency_symbol'] = currency_symbol
-        if order_side:
-            body['order_side'] = order_side
-        if hide_cancel:
-            body['hide_cancel'] = hide_cancel
-        cmd['body'] = body
-        return cmd
-
-    def get_order_cmd(self, order_id):
-        """
-        获取订单详情
-        :param order_id: 订单ID
-        :return:
-        """
-        cmd = {
-            'cmd': 'orderpending/order',
-            'body': {
-                'id': order_id
-            }
-        }
-        return cmd
-
-    def get_order_history_list_cmd(self, page, size, pair=None, account_type=None, coin_symbol=None,
-                                   currency_symbol=None, order_side=None):
-        """
-        获取成交明细
-        :param page: 第几页，从1开始
-        :param size: 要几条
-        :param pair:  交易对, 兼容参数
-        :param account_type: 账户类型，0 - 普通账户，1 - 信用账户
-        :param coin_symbol: 交易币种
-        :param currency_symbol: 定价币种
-        :param order_side: 交易方向，1 - 买，2 - 卖
-        :return:
-        """
-        cmd = {
-            'cmd': 'orderpending/orderHistoryList',
-        }
-        body = {'page': page, 'size': size}
-        if pair:
-            body['pair'] = pair
-        if account_type:
-            body['account_type'] = account_type
-        if coin_symbol:
-            body['coin_symbol'] = coin_symbol
-        if currency_symbol:
-            body['currency_symbol'] = currency_symbol
-        if order_side:
-            body['order_side'] = order_side
-        cmd['body'] = body
-        return cmd
-
     def multi_sign_cmd(self, cmds ,api_url ='orderpending'):
         """
         批量请求
@@ -292,4 +321,3 @@ class REST_API(object):
         else:
             s_cmds =[cmds]
         return self.signed_request('POST', api_url, s_cmds)
-
